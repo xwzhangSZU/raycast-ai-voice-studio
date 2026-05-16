@@ -2,6 +2,8 @@ import type { VoiceConfig, VoiceListResponse, MiniMaxVoicePayload } from "../api
 
 export const DEFAULT_VOICE_ID = "Chinese (Mandarin)_Radio_Host";
 
+const CATEGORY_PRIORITY = ["中文普通话", "粤语", "English", "German", "Custom"] as const;
+
 export const FALLBACK_VOICES: VoiceConfig[] = [
   {
     id: "Chinese (Mandarin)_Radio_Host",
@@ -151,6 +153,27 @@ export const FALLBACK_VOICES: VoiceConfig[] = [
     description: "Graceful English female voice.",
     gender: "female",
   },
+  {
+    id: "German_FriendlyMan",
+    name: "Friendly Man",
+    category: "German",
+    description: "轻松自然、真诚友好的德语男声，适合德语文章、对话和长段落听读。",
+    gender: "male",
+  },
+  {
+    id: "German_SweetLady",
+    name: "Sweet Lady",
+    category: "German",
+    description: "灵动甜美的德语青年女声，适合自然轻快的德语短文、对话和日常听读。",
+    gender: "female",
+  },
+  {
+    id: "German_PlayfulMan",
+    name: "Playful Man",
+    category: "German",
+    description: "自然清亮、轻快流畅的德语青年男声，适合亲密交谈感的德语听读。",
+    gender: "male",
+  },
 ];
 
 export function normalizeVoiceList(payload: VoiceListResponse): VoiceConfig[] {
@@ -162,11 +185,7 @@ export function normalizeVoiceList(payload: VoiceListResponse): VoiceConfig[] {
 
   if (voices.length === 0) return FALLBACK_VOICES;
 
-  return voices.sort((a, b) => {
-    const categoryCompare = a.category.localeCompare(b.category);
-    if (categoryCompare !== 0) return categoryCompare;
-    return a.name.localeCompare(b.name);
-  });
+  return sortVoices(voices);
 }
 
 export function getVoiceById(id: string): VoiceConfig | undefined {
@@ -175,12 +194,12 @@ export function getVoiceById(id: string): VoiceConfig | undefined {
 
 export function groupVoicesByCategory(voices: VoiceConfig[]): Array<[string, VoiceConfig[]]> {
   const groups = new Map<string, VoiceConfig[]>();
-  for (const voice of voices) {
+  for (const voice of sortVoices(voices)) {
     const group = groups.get(voice.category) || [];
     group.push(voice);
     groups.set(voice.category, group);
   }
-  return Array.from(groups.entries());
+  return Array.from(groups.entries()).sort(([categoryA], [categoryB]) => compareCategories(categoryA, categoryB));
 }
 
 export function collectCustomVoiceIds(
@@ -215,8 +234,8 @@ export function addCustomVoices(voices: VoiceConfig[], customVoiceIds: string[])
       isCustom: true,
     }));
 
-  // Surface custom voices first so the IDs the user explicitly added land at
-  // the top of the picker rather than under every MiniMax category.
+  // Keep explicit custom IDs available while letting the picker apply the
+  // MiniMax language-priority order at render time.
   return customVoices.length > 0 ? [...customVoices, ...voices] : voices;
 }
 
@@ -247,8 +266,10 @@ function parseCustomVoiceIds(rawVoiceIds: string | undefined): string[] {
 
 function detectCategory(voiceId: string, fallbackCategory: string): string {
   if (voiceId.includes("Chinese (Mandarin)")) return "中文普通话";
+  if (voiceId.startsWith("Chinese_")) return "中文普通话";
   if (voiceId.includes("Chinese,Yue") || voiceId.includes("Cantonese")) return "粤语";
   if (voiceId.startsWith("English_")) return "English";
+  if (voiceId.startsWith("German_")) return "German";
   if (voiceId.startsWith("Japanese_")) return "Japanese";
   if (voiceId.startsWith("Korean_")) return "Korean";
   return fallbackCategory;
@@ -261,4 +282,23 @@ function detectGender(text: string): VoiceConfig["gender"] {
   if (lower.includes("male") || lower.includes("man") || lower.includes("gentleman") || text.includes("男"))
     return "male";
   return "unknown";
+}
+
+function sortVoices(voices: VoiceConfig[]): VoiceConfig[] {
+  return [...voices].sort((a, b) => {
+    const categoryCompare = compareCategories(a.category, b.category);
+    if (categoryCompare !== 0) return categoryCompare;
+    return a.name.localeCompare(b.name, "zh-Hans");
+  });
+}
+
+function compareCategories(categoryA: string, categoryB: string): number {
+  const priorityCompare = getCategoryPriority(categoryA) - getCategoryPriority(categoryB);
+  if (priorityCompare !== 0) return priorityCompare;
+  return categoryA.localeCompare(categoryB, "zh-Hans");
+}
+
+function getCategoryPriority(category: string): number {
+  const priority = CATEGORY_PRIORITY.indexOf(category as (typeof CATEGORY_PRIORITY)[number]);
+  return priority === -1 ? CATEGORY_PRIORITY.length : priority;
 }
