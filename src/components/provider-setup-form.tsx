@@ -12,7 +12,7 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { MimoTTSModel } from "../api/mimo-types";
 import type { OpenAITTSModel, OpenAIResponseFormat } from "../api/openai-types";
-import { FALLBACK_VOICES, groupVoicesByCategory } from "../constants/voices";
+import { FALLBACK_VOICES, getVoiceSearchKeywords, groupVoicesByCategory } from "../constants/voices";
 import {
   MODEL_LABELS as MIMO_MODEL_LABELS,
   VOICE_CATEGORIES as MIMO_VOICE_CATEGORIES,
@@ -336,7 +336,12 @@ export function ProviderSetupForm({ initialProvider }: ProviderSetupFormProps = 
             {groupVoicesByCategory(FALLBACK_VOICES).map(([category, voices]) => (
               <Form.Dropdown.Section key={category} title={category}>
                 {voices.map((voice) => (
-                  <Form.Dropdown.Item key={voice.id} value={voice.id} title={voice.name} />
+                  <Form.Dropdown.Item
+                    key={voice.id}
+                    value={voice.id}
+                    title={voice.name}
+                    keywords={getVoiceSearchKeywords(voice)}
+                  />
                 ))}
               </Form.Dropdown.Section>
             ))}

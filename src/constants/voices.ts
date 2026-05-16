@@ -4,6 +4,25 @@ export const DEFAULT_VOICE_ID = "Chinese (Mandarin)_Radio_Host";
 
 const CATEGORY_PRIORITY = ["中文普通话", "粤语", "English", "German", "Custom"] as const;
 
+const CATEGORY_SEARCH_ALIASES: Record<string, string[]> = {
+  中文普通话: ["中文", "普通话", "汉语", "国语", "Chinese", "Mandarin", "zh", "zh-CN", "cn"],
+  粤语: ["粤语", "广东话", "Cantonese", "Yue", "Chinese,Yue", "zh-HK", "zh-Yue"],
+  English: ["英语", "英文", "English", "American English", "en", "en-US"],
+  German: ["德语", "德文", "German", "Deutsch", "de", "de-DE"],
+  Japanese: ["日语", "日文", "Japanese", "ja", "ja-JP"],
+  Korean: ["韩语", "韩文", "Korean", "ko", "ko-KR"],
+  Custom: ["自定义", "custom", "custom voice", "voice id"],
+  "System Voices": ["系统", "系统音色", "system", "system voice"],
+  "Cloned Voices": ["克隆", "克隆音色", "clone", "cloned voice"],
+  "Generated Voices": ["生成", "生成音色", "generated", "generated voice"],
+};
+
+const GENDER_SEARCH_ALIASES: Record<NonNullable<VoiceConfig["gender"]>, string[]> = {
+  female: ["女", "女声", "female", "woman"],
+  male: ["男", "男声", "male", "man"],
+  unknown: [],
+};
+
 export const FALLBACK_VOICES: VoiceConfig[] = [
   {
     id: "Chinese (Mandarin)_Radio_Host",
@@ -202,6 +221,18 @@ export function groupVoicesByCategory(voices: VoiceConfig[]): Array<[string, Voi
   return Array.from(groups.entries()).sort(([categoryA], [categoryB]) => compareCategories(categoryA, categoryB));
 }
 
+export function getVoiceSearchKeywords(voice: VoiceConfig): string[] {
+  return uniqueSearchKeywords([
+    voice.id,
+    voice.name,
+    voice.category,
+    voice.description,
+    voice.gender,
+    ...getCategorySearchAliases(voice.category),
+    ...getGenderSearchAliases(voice.gender),
+  ]);
+}
+
 export function collectCustomVoiceIds(
   customDefaultVoice?: string,
   customVoiceIds?: string,
@@ -301,4 +332,29 @@ function compareCategories(categoryA: string, categoryB: string): number {
 function getCategoryPriority(category: string): number {
   const priority = CATEGORY_PRIORITY.indexOf(category as (typeof CATEGORY_PRIORITY)[number]);
   return priority === -1 ? CATEGORY_PRIORITY.length : priority;
+}
+
+function getCategorySearchAliases(category: string): string[] {
+  return CATEGORY_SEARCH_ALIASES[category] || [];
+}
+
+function getGenderSearchAliases(gender: VoiceConfig["gender"]): string[] {
+  return gender && gender in GENDER_SEARCH_ALIASES
+    ? GENDER_SEARCH_ALIASES[gender as NonNullable<VoiceConfig["gender"]>]
+    : [];
+}
+
+function uniqueSearchKeywords(values: unknown[]): string[] {
+  const seen = new Set<string>();
+  const keywords: string[] = [];
+
+  for (const value of values) {
+    if (typeof value !== "string") continue;
+    const keyword = value.trim();
+    if (!keyword || seen.has(keyword)) continue;
+    seen.add(keyword);
+    keywords.push(keyword);
+  }
+
+  return keywords;
 }

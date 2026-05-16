@@ -86,6 +86,7 @@ function codePointLength(text) {
 }
 
 const miniMaxChunker = loadTs("src/utils/text-chunker.ts");
+const miniMaxVoices = loadTs("src/constants/voices.ts");
 const mimoChunker = loadTs("src/utils/mimo-text-chunker.ts");
 const openAIChunker = loadTs("src/utils/openai-text-chunker.ts");
 const miniMaxSpeed = loadTs("src/utils/playback-speed.ts");
@@ -100,6 +101,35 @@ assert(
 assert(
   allChunksWithin(miniMaxChunker.chunkText("😀".repeat(1500)), 1400, codePointLength),
   "MiniMax chunks should count emoji as code points",
+);
+
+const miniMaxVoiceKeywords = new Map(
+  miniMaxVoices.FALLBACK_VOICES.map((voice) => [voice.id, miniMaxVoices.getVoiceSearchKeywords(voice)]),
+);
+assert(
+  miniMaxVoiceKeywords.get("Chinese (Mandarin)_Radio_Host")?.includes("普通话") &&
+    miniMaxVoiceKeywords.get("Chinese (Mandarin)_Radio_Host")?.includes("Mandarin"),
+  "MiniMax Chinese voices should be searchable by Chinese and English language aliases",
+);
+assert(
+  miniMaxVoiceKeywords.get("English_CalmWoman")?.includes("英语") &&
+    miniMaxVoiceKeywords.get("English_CalmWoman")?.includes("en"),
+  "MiniMax English voices should be searchable by Chinese and ISO-like language aliases",
+);
+assert(
+  miniMaxVoiceKeywords.get("German_FriendlyMan")?.includes("德语") &&
+    miniMaxVoiceKeywords.get("German_FriendlyMan")?.includes("Deutsch"),
+  "MiniMax German voices should be searchable by Chinese and native language aliases",
+);
+assert(
+  miniMaxVoices.getVoiceSearchKeywords({
+    id: "legacy_voice",
+    name: "Legacy Voice",
+    category: "Legacy",
+    description: ["not", "a", "string"],
+    gender: "neutral",
+  }).includes("Legacy"),
+  "MiniMax voice search keywords should tolerate malformed cached voice metadata",
 );
 
 assert(
@@ -143,6 +173,8 @@ console.log(
     {
       checked: [
         "MiniMax chunk limits",
+        "MiniMax voice language search keywords",
+        "MiniMax voice malformed metadata guard",
         "MiMo byte chunk limits",
         "OpenAI chunk limits",
         "MiniMax speed clamp/storage",

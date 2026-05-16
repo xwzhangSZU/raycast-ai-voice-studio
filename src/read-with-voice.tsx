@@ -10,7 +10,13 @@ import {
   openExtensionPreferences,
 } from "@raycast/api";
 import { useState, useEffect, useCallback } from "react";
-import { addCustomVoices, collectCustomVoiceIds, FALLBACK_VOICES, groupVoicesByCategory } from "./constants/voices";
+import {
+  addCustomVoices,
+  collectCustomVoiceIds,
+  FALLBACK_VOICES,
+  getVoiceSearchKeywords,
+  groupVoicesByCategory,
+} from "./constants/voices";
 import { buildOptionsFromPrefs, listVoices, TTSApiError } from "./api/minimax-tts";
 import { chunkText } from "./utils/text-chunker";
 import {
@@ -190,7 +196,7 @@ export default function ReadWithVoice() {
     : "No text selected";
 
   return (
-    <List isLoading={isLoading} searchBarPlaceholder="Search MiniMax voices...">
+    <List isLoading={isLoading} searchBarPlaceholder="Search MiniMax voices by language or name...">
       <List.Section title="Selected Text">
         <List.Item
           title={textPreview}
@@ -223,6 +229,7 @@ export default function ReadWithVoice() {
                 key={voice.id}
                 title={voice.name}
                 subtitle={voice.isCustom ? undefined : voice.id}
+                keywords={getVoiceSearchKeywords(voice)}
                 icon={voice.gender === "female" ? Icon.Female : voice.gender === "male" ? Icon.Male : Icon.Person}
                 accessories={[
                   ...(rowProgress

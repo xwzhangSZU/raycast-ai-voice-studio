@@ -17,7 +17,13 @@ import {
   listVoices,
   TTSApiError,
 } from "./api/minimax-tts";
-import { addCustomVoices, collectCustomVoiceIds, FALLBACK_VOICES, groupVoicesByCategory } from "./constants/voices";
+import {
+  addCustomVoices,
+  collectCustomVoiceIds,
+  FALLBACK_VOICES,
+  getVoiceSearchKeywords,
+  groupVoicesByCategory,
+} from "./constants/voices";
 import type { VoiceConfig } from "./api/types";
 import { AudioPlayer } from "./utils/audio-player";
 import { getReadableText } from "./utils/text-source";
@@ -187,7 +193,7 @@ export default function SelectVoice() {
     <List
       isLoading={isLoading}
       selectedItemId={activeVoiceId || undefined}
-      searchBarPlaceholder="Search and choose the Quick Read voice..."
+      searchBarPlaceholder="Search by language, voice ID, or name..."
       navigationTitle="Select Quick Read Voice"
     >
       <List.Section title="Current">
@@ -245,6 +251,7 @@ export default function SelectVoice() {
               key={voice.id}
               title={voice.name}
               subtitle={voice.isCustom ? undefined : voice.id}
+              keywords={getVoiceSearchKeywords(voice)}
               icon={voice.gender === "female" ? Icon.Female : voice.gender === "male" ? Icon.Male : Icon.Person}
               accessories={[
                 ...(activeVoiceId === voice.id ? [{ tag: { value: "Quick Read", color: Color.Green } }] : []),
