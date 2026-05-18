@@ -4,13 +4,8 @@ import { formatTextSource } from "./text-source";
 import { ReadingSession, saveReadingSession, updateReadingProgress } from "./reading-session";
 import { buildTextPreview, clearPlaybackState, writePlaybackState } from "./playback-state";
 import { clampSpeed, clearPlaybackSpeed, formatSpeed, readPlaybackSpeed, writePlaybackSpeed } from "./playback-speed";
-import { startMiniMaxSynthesisJob, synthesizeMiniMaxChunk, type MiniMaxSynthesisJob } from "./minimax-synthesis";
-
-interface LookaheadJob {
-  index: number;
-  speed: number;
-  job: MiniMaxSynthesisJob;
-}
+import { startMiniMaxSynthesisJob } from "./minimax-synthesis";
+import { playChunkSequence } from "./chunk-playback-engine";
 
 export interface ReadingRunnerCallbacks {
   onChunkPhase?: (progress: {
@@ -46,7 +41,7 @@ export async function playReadingSession(
   // Seed the live speed value from the session so menubar / Speed Up / Slow
   // Down can read it back. A previously adjusted session keeps its speed.
   let currentSpeed = clampSpeed(activeSession.options.speed);
-  let lookahead: LookaheadJob | null = null;
+  let speedChangedThisChunk = false;
   await writePlaybackSpeed(currentSpeed);
 
   try {
@@ -59,102 +54,67 @@ export async function playReadingSession(
       );
     }
 
-    for (let i = startIndex; i < chunkCount; i++) {
-      if (player.isStopped() || hasExternalStopRequest()) break;
-
-      // Pick up any speed change made by Speed Up / Slow Down between chunks.
-      const desiredSpeed = (await readPlaybackSpeed()) ?? currentSpeed;
-      const speedChanged = desiredSpeed !== currentSpeed;
-      currentSpeed = desiredSpeed;
-
-      const chunkOptions = { ...activeSession.options, speed: currentSpeed };
-      const audioPromise =
-        lookahead?.index === i && lookahead.speed === currentSpeed
-          ? lookahead.job.promise
-          : synthesizeMiniMaxChunk(activeSession.chunks[i], chunkOptions, player);
-
-      if (lookahead && (lookahead.index !== i || lookahead.speed !== currentSpeed)) {
-        lookahead.job.cancel();
-      }
-      lookahead = null;
-
-      await writePlaybackState({
-        phase: "synthesizing",
-        voiceId: activeSession.options.voiceId,
-        source: activeSession.source,
-        textPreview,
-        totalChars: activeSession.text.length,
-        chunkIndex: i,
-        chunkTotal: chunkCount,
-        speed: currentSpeed,
-        updatedAt: new Date().toISOString(),
-      });
-      await callbacks.onChunkPhase?.({
-        phase: "synthesizing",
-        chunkIndex: i,
-        chunkTotal: chunkCount,
-        speed: currentSpeed,
-      });
-
-      const audio = await audioPromise;
-      if (!audio) break;
-      if (player.isStopped() || hasExternalStopRequest()) break;
-
-      if (i + 1 < chunkCount) {
-        lookahead = {
-          index: i + 1,
-          speed: currentSpeed,
-          job: startMiniMaxSynthesisJob(
-            activeSession.chunks[i + 1],
-            { ...activeSession.options, speed: currentSpeed },
-            player,
+    await playChunkSequence<ReadingSession["options"]>({
+      total: chunkCount,
+      startIndex,
+      player,
+      shouldStop: () => player.isStopped() || hasExternalStopRequest(),
+      stopCheckAtLoopTop: true,
+      stopCheckBeforeOutcome: false,
+      stopCheckAfterAdvance: true,
+      stopAfterAdvance: () => hasExternalStopRequest(),
+      resolveOptions: async () => {
+        // Pick up any speed change made by Speed Up / Slow Down between chunks.
+        const desiredSpeed = (await readPlaybackSpeed()) ?? currentSpeed;
+        speedChangedThisChunk = desiredSpeed !== currentSpeed;
+        currentSpeed = desiredSpeed;
+        return { ...activeSession.options, speed: currentSpeed };
+      },
+      optionsKey: (options) => String(options.speed),
+      startJob: (index, options) => {
+        const job = startMiniMaxSynthesisJob(activeSession.chunks[index], options, player);
+        return {
+          outcome: job.promise.then(
+            (audio) => (audio == null ? ({ kind: "stopped" } as const) : ({ kind: "audio", audio } as const)),
+            (cause) => ({ kind: "error", cause }) as const,
           ),
+          cancel: job.cancel,
         };
-        // Prevent an unhandled rejection if the next synthesis fails before
-        // the loop reaches that chunk; the original promise is still awaited.
-        lookahead.job.promise.catch(() => undefined);
-      }
-
-      await writePlaybackState({
-        phase: "playing",
-        voiceId: activeSession.options.voiceId,
-        source: activeSession.source,
-        textPreview,
-        totalChars: activeSession.text.length,
-        chunkIndex: i,
-        chunkTotal: chunkCount,
-        speed: currentSpeed,
-        updatedAt: new Date().toISOString(),
-      });
-      await callbacks.onChunkPhase?.({
-        phase: "playing",
-        chunkIndex: i,
-        chunkTotal: chunkCount,
-        speed: currentSpeed,
-      });
-
-      await player.playAudio(audio);
-
-      if (speedChanged) {
-        // Persist the latest speed to the session so Resume Last Reading
-        // continues at the user's chosen pace.
-        activeSession = {
-          ...activeSession,
-          options: { ...activeSession.options, speed: currentSpeed },
-        };
-        await saveReadingSession(activeSession);
-      }
-
-      if (player.isStopped() || hasExternalStopRequest()) {
-        break;
-      }
-
-      activeSession = await updateReadingProgress(activeSession, i + 1);
-
-      if (hasExternalStopRequest()) {
-        break;
-      }
-    }
+      },
+      errorIsStop: () => false,
+      onError: (_index, _total, cause) => {
+        throw cause;
+      },
+      onPhase: async (phase, index) => {
+        await writePlaybackState({
+          phase,
+          voiceId: activeSession.options.voiceId,
+          source: activeSession.source,
+          textPreview,
+          totalChars: activeSession.text.length,
+          chunkIndex: index,
+          chunkTotal: chunkCount,
+          speed: currentSpeed,
+          updatedAt: new Date().toISOString(),
+        });
+        await callbacks.onChunkPhase?.({ phase, chunkIndex: index, chunkTotal: chunkCount, speed: currentSpeed });
+      },
+      play: (audio) => player.playAudio(audio),
+      afterPlay: async () => {
+        if (speedChangedThisChunk) {
+          // Persist the latest speed to the session so Resume Last Reading
+          // continues at the user's chosen pace.
+          activeSession = {
+            ...activeSession,
+            options: { ...activeSession.options, speed: currentSpeed },
+          };
+          await saveReadingSession(activeSession);
+        }
+      },
+      afterAdvance: async (index) => {
+        activeSession = await updateReadingProgress(activeSession, index + 1);
+      },
+    });
 
     if (activeSession.nextChunkIndex >= chunkCount && !player.isStopped() && !hasExternalStopRequest()) {
       if (!callbacks.suppressHud) await showHUD("Playback complete");
@@ -182,7 +142,6 @@ export async function playReadingSession(
       // Same rationale: do not clear playback speed on a manual stop.
     }
   } finally {
-    lookahead?.job.cancel();
     player.cleanup();
   }
 }

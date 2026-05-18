@@ -1,4 +1,5 @@
 import type { AudioPlayer } from "./audio-player";
+import { playChunkSequence } from "./chunk-playback-engine";
 
 export interface PipelinedPlaybackCallbacks {
   onChunkReady?: (index: number, total: number) => Promise<void> | void;
@@ -31,12 +32,15 @@ export interface PipelineProvider<O> {
 }
 
 type AudioOptions = { format: string; playbackRate: number };
-type SynthesisResult = { audio: string } | { error: unknown };
 
 /**
  * Play chunks sequentially while synthesizing the next chunk during current
- * playback. Provider-agnostic: the synthesis call and stop-signal check are
- * injected via `provider`.
+ * playback. Delegates to the shared chunk-playback engine; the hooks below
+ * reproduce this path's original behavior exactly (no loop-top stop check;
+ * stop is checked before the synthesis outcome, again before playback, and
+ * after playback; a real synthesis error throws ChunkSynthesisError unless
+ * playback was already stopped; constant options so the prefetch is always
+ * reused).
  */
 export async function playChunksWithLookahead<O extends AudioOptions>(
   chunks: string[],
@@ -47,49 +51,40 @@ export async function playChunksWithLookahead<O extends AudioOptions>(
 ): Promise<void> {
   if (chunks.length === 0) return;
 
-  let currentJob: Promise<SynthesisResult> | null = startSynthesisJob(provider, chunks[0], options, player.signal);
-
-  for (let index = 0; index < chunks.length && currentJob; index++) {
-    const result = await currentJob;
-    if (await shouldStop(player, provider)) break;
-
-    if ("error" in result) {
-      if (player.isStopped()) break;
-      throw new ChunkSynthesisError(index, chunks.length, result.error);
-    }
-
-    if (await shouldStop(player, provider)) break;
-
-    currentJob =
-      index + 1 < chunks.length ? startSynthesisJob(provider, chunks[index + 1], options, player.signal) : null;
-
-    await callbacks.onChunkReady?.(index, chunks.length);
-    if (index === 0) {
-      await callbacks.onFirstAudioReady?.();
-    }
-
-    await player.playAudio(result.audio, options.format, options.playbackRate);
-    if (await shouldStop(player, provider)) break;
-  }
-}
-
-async function shouldStop<O>(player: AudioPlayer, provider: PipelineProvider<O>): Promise<boolean> {
-  if (player.isStopped()) return true;
-  if (await provider.hasStopRequest()) {
-    player.stopPlayback();
-    return true;
-  }
-  return false;
-}
-
-function startSynthesisJob<O>(
-  provider: PipelineProvider<O>,
-  text: string,
-  options: O,
-  signal: AbortSignal,
-): Promise<SynthesisResult> {
-  return provider.synthesize(text, options, signal).then(
-    (audio) => ({ audio }),
-    (error) => ({ error }),
-  );
+  await playChunkSequence<O>({
+    total: chunks.length,
+    startIndex: 0,
+    player,
+    shouldStop: async () => {
+      if (player.isStopped()) return true;
+      if (await provider.hasStopRequest()) {
+        player.stopPlayback();
+        return true;
+      }
+      return false;
+    },
+    stopCheckAtLoopTop: false,
+    stopCheckBeforeOutcome: true,
+    stopCheckAfterAdvance: false,
+    resolveOptions: () => options,
+    optionsKey: () => "",
+    startJob: (index) => ({
+      outcome: provider.synthesize(chunks[index], options, player.signal).then(
+        (audio) => ({ kind: "audio", audio }) as const,
+        (cause) => ({ kind: "error", cause }) as const,
+      ),
+      cancel: () => undefined,
+    }),
+    errorIsStop: () => player.isStopped(),
+    onError: (index, total, cause) => {
+      throw new ChunkSynthesisError(index, total, cause);
+    },
+    onPhase: async (phase, index, total) => {
+      if (phase === "playing") {
+        await callbacks.onChunkReady?.(index, total);
+      }
+    },
+    onFirstAudio: () => callbacks.onFirstAudioReady?.(),
+    play: (audio) => player.playAudio(audio, options.format, options.playbackRate),
+  });
 }
