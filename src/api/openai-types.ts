@@ -1,4 +1,4 @@
-export type OpenAITTSModel = "gpt-4o-mini-tts" | "tts-1" | "tts-1-hd";
+export type OpenAITTSModel = "gpt-4o-mini-tts";
 
 export type OpenAIResponseFormat = "mp3" | "wav";
 
@@ -22,4 +22,19 @@ export interface VoiceConfig {
   description: string;
   models: OpenAITTSModel[];
   recommended?: boolean;
+}
+
+// Steerable dimensions of gpt-4o-mini-tts surfaced as user controls.
+// Speed is handled separately via playbackRate, so it is not included here.
+export type OpenAITone = "neutral" | "warm" | "authoritative" | "conversational";
+export type OpenAIExpressiveness = "restrained" | "moderate" | "expressive";
+export type OpenAIDelivery = "standard" | "narration" | "newscast" | "soft";
+export type OpenAIAccentFocus = "multilingual" | "english" | "german" | "chinese";
+
+export interface OpenAIStyle {
+  tone: OpenAITone;
+  expressiveness: OpenAIExpressiveness;
+  delivery: OpenAIDelivery;
+  accentFocus: OpenAIAccentFocus;
+  extraNotes?: string;
 }

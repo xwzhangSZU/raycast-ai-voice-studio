@@ -2,16 +2,15 @@ import type { OpenAITTSModel, OpenAIResponseFormat, VoiceConfig } from "../api/o
 
 export const DEFAULT_MODEL: OpenAITTSModel = "gpt-4o-mini-tts";
 export const DEFAULT_VOICE = "cedar";
-export const DEFAULT_FORMAT: OpenAIResponseFormat = "mp3";
+// WAV avoids decode overhead → lowest first-audio latency for pipelined
+// playback (OpenAI Speech API docs recommend wav/pcm for fastest response).
+export const DEFAULT_FORMAT: OpenAIResponseFormat = "wav";
 
 export const MODEL_LABELS: Record<OpenAITTSModel, string> = {
   "gpt-4o-mini-tts": "GPT-4o Mini TTS",
-  "tts-1": "TTS-1",
-  "tts-1-hd": "TTS-1 HD",
 };
 
-const LEGACY_MODELS: OpenAITTSModel[] = ["gpt-4o-mini-tts", "tts-1", "tts-1-hd"];
-const LATEST_ONLY: OpenAITTSModel[] = ["gpt-4o-mini-tts"];
+const SUPPORTED_MODELS: OpenAITTSModel[] = ["gpt-4o-mini-tts"];
 
 export const VOICES: VoiceConfig[] = [
   {
@@ -20,7 +19,7 @@ export const VOICES: VoiceConfig[] = [
     gender: "male",
     category: "Recommended",
     description: "Recommended OpenAI voice for high-quality natural narration.",
-    models: LATEST_ONLY,
+    models: SUPPORTED_MODELS,
     recommended: true,
   },
   {
@@ -29,7 +28,7 @@ export const VOICES: VoiceConfig[] = [
     gender: "female",
     category: "Recommended",
     description: "Recommended OpenAI voice for polished, clear reading.",
-    models: LATEST_ONLY,
+    models: SUPPORTED_MODELS,
     recommended: true,
   },
   {
@@ -38,7 +37,7 @@ export const VOICES: VoiceConfig[] = [
     gender: "female",
     category: "General",
     description: "Bright, friendly voice suitable for everyday reading.",
-    models: LEGACY_MODELS,
+    models: SUPPORTED_MODELS,
   },
   {
     id: "alloy",
@@ -46,7 +45,7 @@ export const VOICES: VoiceConfig[] = [
     gender: "neutral",
     category: "General",
     description: "Balanced neutral voice for general-purpose narration.",
-    models: LEGACY_MODELS,
+    models: SUPPORTED_MODELS,
   },
   {
     id: "ash",
@@ -54,7 +53,7 @@ export const VOICES: VoiceConfig[] = [
     gender: "male",
     category: "General",
     description: "Clear, steady voice for notes and articles.",
-    models: LEGACY_MODELS,
+    models: SUPPORTED_MODELS,
   },
   {
     id: "ballad",
@@ -62,7 +61,7 @@ export const VOICES: VoiceConfig[] = [
     gender: "male",
     category: "Expressive",
     description: "Expressive voice for richer narration and dramatic text.",
-    models: LATEST_ONLY,
+    models: SUPPORTED_MODELS,
   },
   {
     id: "echo",
@@ -70,7 +69,7 @@ export const VOICES: VoiceConfig[] = [
     gender: "male",
     category: "General",
     description: "Crisp voice for concise summaries and explanations.",
-    models: LEGACY_MODELS,
+    models: SUPPORTED_MODELS,
   },
   {
     id: "fable",
@@ -78,7 +77,7 @@ export const VOICES: VoiceConfig[] = [
     gender: "neutral",
     category: "Expressive",
     description: "Storytelling voice with a warm delivery.",
-    models: LEGACY_MODELS,
+    models: SUPPORTED_MODELS,
   },
   {
     id: "nova",
@@ -86,7 +85,7 @@ export const VOICES: VoiceConfig[] = [
     gender: "female",
     category: "General",
     description: "Smooth, energetic voice for modern narration.",
-    models: LEGACY_MODELS,
+    models: SUPPORTED_MODELS,
   },
   {
     id: "onyx",
@@ -94,7 +93,7 @@ export const VOICES: VoiceConfig[] = [
     gender: "male",
     category: "Deep",
     description: "Deeper voice for measured long-form reading.",
-    models: LEGACY_MODELS,
+    models: SUPPORTED_MODELS,
   },
   {
     id: "sage",
@@ -102,7 +101,7 @@ export const VOICES: VoiceConfig[] = [
     gender: "female",
     category: "General",
     description: "Calm voice for careful reading and explanation.",
-    models: LEGACY_MODELS,
+    models: SUPPORTED_MODELS,
   },
   {
     id: "shimmer",
@@ -110,7 +109,7 @@ export const VOICES: VoiceConfig[] = [
     gender: "female",
     category: "General",
     description: "Light, upbeat voice for short text and casual reading.",
-    models: LEGACY_MODELS,
+    models: SUPPORTED_MODELS,
   },
   {
     id: "verse",
@@ -118,7 +117,7 @@ export const VOICES: VoiceConfig[] = [
     gender: "neutral",
     category: "Expressive",
     description: "Expressive voice for lyrical or stylized passages.",
-    models: LATEST_ONLY,
+    models: SUPPORTED_MODELS,
   },
 ];
 

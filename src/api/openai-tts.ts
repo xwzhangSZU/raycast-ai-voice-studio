@@ -7,6 +7,7 @@ import {
   getVoiceById,
   isVoiceAvailableForModel,
 } from "../constants/openai-voices";
+import { composeStyleInstruction } from "../constants/openai-style";
 import { getSpeedOverride, parseRateString, rateToInstruction } from "../utils/openai-playback-state";
 import { getOpenAISettings, type OpenAIProviderSettings } from "../utils/provider-settings";
 import type { OpenAITTSModel, OpenAIResponseFormat, TTSOptionOverrides, TTSOptions } from "./openai-types";
@@ -164,7 +165,7 @@ function buildOptionsFromSettings(
   return {
     model,
     voice,
-    instructions: buildInstructions(overrides.instructions ?? settings.instructions, rate),
+    instructions: buildInstructions(settings, overrides.instructions, rate),
     format: normalizeFormat(settings.responseFormat),
     playbackRate: rate,
   };
@@ -183,8 +184,7 @@ export async function validateOptions(voiceOverride?: string): Promise<TTSOption
 }
 
 function normalizeModel(model: string | undefined): OpenAITTSModel {
-  if (model === "tts-1" || model === "tts-1-hd" || model === "gpt-4o-mini-tts") return model;
-  return DEFAULT_MODEL;
+  return model === "gpt-4o-mini-tts" ? model : DEFAULT_MODEL;
 }
 
 function normalizeFormat(format: string | undefined): OpenAIResponseFormat {
@@ -197,9 +197,19 @@ function supportsInstructions(model: OpenAITTSModel): boolean {
   return model === "gpt-4o-mini-tts";
 }
 
-function buildInstructions(base: string | undefined, rate: number): string | undefined {
-  const parts = [base?.trim(), rateToInstruction(rate)].filter(Boolean);
-  return parts.length > 0 ? parts.join("\n") : undefined;
+function buildInstructions(settings: OpenAIProviderSettings, override: string | undefined, rate: number): string {
+  const trimmedOverride = override?.trim();
+  const base = trimmedOverride
+    ? trimmedOverride
+    : composeStyleInstruction({
+        tone: settings.tone,
+        expressiveness: settings.expressiveness,
+        delivery: settings.delivery,
+        accentFocus: settings.accentFocus,
+        extraNotes: settings.instructions,
+      });
+  const parts = [base, rateToInstruction(rate)].filter(Boolean);
+  return parts.join("\n");
 }
 
 export class TTSApiError extends Error {

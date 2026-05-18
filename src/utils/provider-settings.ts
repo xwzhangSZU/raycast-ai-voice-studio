@@ -2,9 +2,26 @@ import { LocalStorage } from "@raycast/api";
 import { DEFAULT_VOICE_ID } from "../constants/voices";
 import { DEFAULT_MODEL as DEFAULT_MIMO_MODEL, DEFAULT_VOICE as DEFAULT_MIMO_VOICE } from "../constants/mimo-voices";
 import { DEFAULT_FORMAT, DEFAULT_MODEL, DEFAULT_VOICE } from "../constants/openai-voices";
+import {
+  DEFAULT_TONE,
+  DEFAULT_EXPRESSIVENESS,
+  DEFAULT_DELIVERY,
+  DEFAULT_ACCENT_FOCUS,
+  normalizeTone,
+  normalizeExpressiveness,
+  normalizeDelivery,
+  normalizeAccentFocus,
+} from "../constants/openai-style";
 import type { MiniMaxRegion } from "../api/types";
 import type { MimoTTSModel } from "../api/mimo-types";
-import type { OpenAITTSModel, OpenAIResponseFormat } from "../api/openai-types";
+import type {
+  OpenAITTSModel,
+  OpenAIResponseFormat,
+  OpenAITone,
+  OpenAIExpressiveness,
+  OpenAIDelivery,
+  OpenAIAccentFocus,
+} from "../api/openai-types";
 import type { TTSProvider } from "./provider";
 
 export interface OpenAIProviderSettings {
@@ -12,6 +29,10 @@ export interface OpenAIProviderSettings {
   voice: string;
   responseFormat: OpenAIResponseFormat;
   playbackRate: string;
+  tone: OpenAITone;
+  expressiveness: OpenAIExpressiveness;
+  delivery: OpenAIDelivery;
+  accentFocus: OpenAIAccentFocus;
   instructions?: string;
 }
 
@@ -76,6 +97,10 @@ export const DEFAULT_PROVIDER_SETTINGS: ProviderSettings = {
     voice: DEFAULT_VOICE,
     responseFormat: DEFAULT_FORMAT,
     playbackRate: "1",
+    tone: DEFAULT_TONE,
+    expressiveness: DEFAULT_EXPRESSIVENESS,
+    delivery: DEFAULT_DELIVERY,
+    accentFocus: DEFAULT_ACCENT_FOCUS,
     instructions: "",
   },
 };
@@ -179,15 +204,22 @@ function normalizeOpenAISettings(settings: Partial<OpenAIProviderSettings> | und
   return {
     model: normalizeOpenAIModel(settings?.model),
     voice: settings?.voice?.trim() || DEFAULT_VOICE,
-    responseFormat: settings?.responseFormat === "wav" ? "wav" : DEFAULT_FORMAT,
+    responseFormat: normalizeOpenAIFormat(settings?.responseFormat),
     playbackRate: normalizePlaybackRate(settings?.playbackRate),
+    tone: normalizeTone(settings?.tone),
+    expressiveness: normalizeExpressiveness(settings?.expressiveness),
+    delivery: normalizeDelivery(settings?.delivery),
+    accentFocus: normalizeAccentFocus(settings?.accentFocus),
     instructions: settings?.instructions?.trim() || "",
   };
 }
 
 function normalizeOpenAIModel(model: string | undefined): OpenAITTSModel {
-  if (model === "tts-1" || model === "tts-1-hd" || model === "gpt-4o-mini-tts") return model;
-  return DEFAULT_MODEL;
+  return model === "gpt-4o-mini-tts" ? model : DEFAULT_MODEL;
+}
+
+function normalizeOpenAIFormat(format: string | undefined): OpenAIResponseFormat {
+  return format === "wav" || format === "mp3" ? format : DEFAULT_FORMAT;
 }
 
 function normalizePlaybackRate(rate: string | undefined): string {
