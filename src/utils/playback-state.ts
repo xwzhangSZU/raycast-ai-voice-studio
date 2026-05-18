@@ -39,6 +39,19 @@ export async function clearPlaybackState(): Promise<void> {
   await LocalStorage.removeItem(PLAYBACK_STATE_KEY);
 }
 
+// A reading loop rewrites `updatedAt` on every chunk phase, so a
+// synthesizing/playing state whose timestamp is far in the past was almost
+// certainly left by a crashed process. No single chunk takes minutes, so a
+// generous window never misclassifies a live reading while still letting a
+// fresh trigger ignore (rather than be swallowed by) a zombie state.
+const PLAYBACK_STATE_STALE_AFTER_MS = 5 * 60 * 1000;
+
+export function isPlaybackStateFresh(state: PlaybackState, now: number = Date.now()): boolean {
+  const updatedAtMs = Date.parse(state.updatedAt);
+  if (!Number.isFinite(updatedAtMs)) return false;
+  return now - updatedAtMs < PLAYBACK_STATE_STALE_AFTER_MS;
+}
+
 export function buildTextPreview(text: string, maxChars = 60): string {
   const trimmed = text.replace(/\s+/g, " ").trim();
   if (trimmed.length === 0) return "";

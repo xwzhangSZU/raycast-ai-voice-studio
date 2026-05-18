@@ -19,6 +19,10 @@ export interface ReadingRunnerCallbacks {
     chunkTotal: number;
     speed: number;
   }) => Promise<void> | void;
+  // When the caller presents its own progress UI (e.g. an animated toast with
+  // a Stop action), set this to skip the runner's own HUD so the two surfaces
+  // don't compete. Defaults to false — existing callers are unaffected.
+  suppressHud?: boolean;
 }
 
 export async function playReadingSession(
@@ -47,11 +51,13 @@ export async function playReadingSession(
 
   try {
     const speedSuffix = currentSpeed === 1 ? "" : ` · ${formatSpeed(currentSpeed)}`;
-    await showHUD(
-      `${isResuming ? "Resuming" : "Reading"}${previewSuffix} · ${session.text.length} chars from ${sourceLabel} (${
-        startIndex + 1
-      }/${chunkCount})${speedSuffix}`,
-    );
+    if (!callbacks.suppressHud) {
+      await showHUD(
+        `${isResuming ? "Resuming" : "Reading"}${previewSuffix} · ${session.text.length} chars from ${sourceLabel} (${
+          startIndex + 1
+        }/${chunkCount})${speedSuffix}`,
+      );
+    }
 
     for (let i = startIndex; i < chunkCount; i++) {
       if (player.isStopped() || hasExternalStopRequest()) break;
@@ -151,12 +157,12 @@ export async function playReadingSession(
     }
 
     if (activeSession.nextChunkIndex >= chunkCount && !player.isStopped() && !hasExternalStopRequest()) {
-      await showHUD("Playback complete");
+      if (!callbacks.suppressHud) await showHUD("Playback complete");
       await clearPlaybackState();
       await clearPlaybackSpeed();
     } else if (hasExternalStopRequest()) {
       const nextChunk = Math.min(activeSession.nextChunkIndex + 1, chunkCount);
-      await showHUD(`Stopped${previewSuffix} · paused at ${nextChunk}/${chunkCount}`);
+      if (!callbacks.suppressHud) await showHUD(`Stopped${previewSuffix} · paused at ${nextChunk}/${chunkCount}`);
       await writePlaybackState({
         phase: "stopped",
         voiceId: activeSession.options.voiceId,

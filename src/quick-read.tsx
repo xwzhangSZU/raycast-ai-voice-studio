@@ -1,11 +1,11 @@
-import { LaunchType, launchCommand, showHUD } from "@raycast/api";
+import { LaunchType, Toast, launchCommand, showHUD, showToast } from "@raycast/api";
 import { clearExternalStopRequest, requestExternalStop, stopExternalPlayback } from "./utils/audio-player";
 import { getReadableText } from "./utils/text-source";
 import { prepareReadingSession } from "./utils/reading-session";
 import { playReadingSession } from "./utils/reading-runner";
 import { validateDefaultOptions } from "./utils/voice-preferences";
 import { presentCommandError, showResumeSuggestion } from "./utils/errors";
-import { clearPlaybackState, readPlaybackState } from "./utils/playback-state";
+import { clearPlaybackState, isPlaybackStateFresh, readPlaybackState } from "./utils/playback-state";
 import { getDefaultProvider } from "./utils/provider";
 
 export default async function QuickRead() {
@@ -20,7 +20,8 @@ export default async function QuickRead() {
   }
 
   const liveState = await readPlaybackState();
-  const hasActiveMiniMaxReading = liveState?.phase === "synthesizing" || liveState?.phase === "playing";
+  const hasActiveMiniMaxReading =
+    (liveState?.phase === "synthesizing" || liveState?.phase === "playing") && isPlaybackStateFresh(liveState);
 
   if (hasActiveMiniMaxReading) {
     requestExternalStop();
@@ -65,7 +66,33 @@ export default async function QuickRead() {
     }
 
     const { session, isResuming } = await prepareReadingSession(readableText.text, readableText.source, options);
-    await playReadingSession(session, isResuming);
+
+    const sourceLabel = readableText.source === "clipboard" ? "from clipboard" : "from selection";
+    const chunkSuffix = session.chunks.length > 1 ? ` · ${session.chunks.length} chunks` : "";
+    const toast = await showToast({
+      style: Toast.Style.Animated,
+      title: `${isResuming ? "Resuming" : "Synthesizing"} ${sourceLabel}${chunkSuffix}`,
+      primaryAction: {
+        title: "Stop Reading",
+        shortcut: { modifiers: ["cmd"], key: "." },
+        onAction: () => {
+          requestExternalStop();
+          stopExternalPlayback();
+        },
+      },
+    });
+
+    await playReadingSession(session, isResuming, {
+      suppressHud: true,
+      onChunkPhase: ({ phase, chunkIndex, chunkTotal }) => {
+        const counter = chunkTotal > 1 ? ` ${chunkIndex + 1}/${chunkTotal}` : "";
+        toast.title = phase === "synthesizing" ? `Synthesizing${counter}` : `Playing${counter}`;
+      },
+    });
+
+    const finalState = await readPlaybackState();
+    toast.style = Toast.Style.Success;
+    toast.title = finalState?.phase === "stopped" ? "Stopped" : "Playback complete";
   } catch (error) {
     await presentCommandError(error, "Failed to read selection");
   }

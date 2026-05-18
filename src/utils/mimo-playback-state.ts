@@ -18,6 +18,8 @@ export interface NowPlayingState {
   startedAt: number;
   errorMessage?: string;
   source?: string;
+  /** Heartbeat: refreshed on every write so a crashed reading can be detected. */
+  updatedAt?: number;
 }
 
 export const SPEED_MIN = 0.5;
@@ -36,7 +38,18 @@ export async function getNowPlaying(): Promise<NowPlayingState | null> {
 }
 
 export async function setNowPlaying(state: NowPlayingState): Promise<void> {
-  await LocalStorage.setItem(NOW_PLAYING_KEY, JSON.stringify(state));
+  await LocalStorage.setItem(NOW_PLAYING_KEY, JSON.stringify({ ...state, updatedAt: Date.now() }));
+}
+
+// patchNowPlaying runs setNowPlaying on every chunk, so updatedAt is a live
+// heartbeat. A playing/synthesizing state with no recent heartbeat (or none
+// at all, e.g. a pre-upgrade leftover) was left by a crashed process and must
+// not swallow the next Quick Read trigger as a phantom stop.
+const NOW_PLAYING_STALE_AFTER_MS = 5 * 60 * 1000;
+
+export function isNowPlayingFresh(state: NowPlayingState, now: number = Date.now()): boolean {
+  if (typeof state.updatedAt !== "number") return false;
+  return now - state.updatedAt < NOW_PLAYING_STALE_AFTER_MS;
 }
 
 export async function patchNowPlaying(patch: Partial<NowPlayingState>): Promise<NowPlayingState | null> {

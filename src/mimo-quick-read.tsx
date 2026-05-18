@@ -7,6 +7,7 @@ import {
   clearNowPlaying,
   clearPlaybackStopRequest,
   getNowPlaying,
+  isNowPlayingFresh,
   markError,
   markIdle,
   patchNowPlaying,
@@ -26,7 +27,10 @@ export default async function QuickRead() {
 export async function runMimoQuickRead() {
   const state = await getNowPlaying();
   const wasPlaying = stopExternalPlayback();
-  if (wasPlaying || state?.status === "playing" || state?.status === "synthesizing") {
+  const readingStillActive = state
+    ? (state.status === "playing" || state.status === "synthesizing") && isNowPlayingFresh(state)
+    : false;
+  if (wasPlaying || readingStillActive) {
     await requestPlaybackStop();
     await clearNowPlaying();
     await showHUD("Stopped. Run Quick Read again to read new text.");
