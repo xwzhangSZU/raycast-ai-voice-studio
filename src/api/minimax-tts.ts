@@ -361,6 +361,18 @@ export async function buildOptionsFromPrefs(voiceOverride?: string): Promise<TTS
   };
 }
 
+/**
+ * Resolve options and run the same credential / model pre-flight that
+ * synthesis performs, without any network request. Lets commands surface a
+ * guided configuration error immediately instead of failing mid-playback.
+ */
+export async function validateOptions(voiceOverride?: string): Promise<TTSOptions> {
+  const settings = await getMiniMaxSettings();
+  const options = await buildOptionsFromPrefs(voiceOverride);
+  await resolveAuth(options.model, settings);
+  return options;
+}
+
 function parseAuthMode(rawMode: string | undefined): AuthMode {
   if (rawMode === "token-plan" || rawMode === "payg") {
     return rawMode;

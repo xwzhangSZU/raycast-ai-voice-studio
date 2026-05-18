@@ -3,7 +3,7 @@ import { clearExternalStopRequest, requestExternalStop, stopExternalPlayback } f
 import { getReadableText } from "./utils/text-source";
 import { prepareReadingSession } from "./utils/reading-session";
 import { playReadingSession } from "./utils/reading-runner";
-import { buildDefaultOptionsFromPrefs } from "./utils/voice-preferences";
+import { validateDefaultOptions } from "./utils/voice-preferences";
 import { presentCommandError, showResumeSuggestion } from "./utils/errors";
 import { clearPlaybackState, readPlaybackState } from "./utils/playback-state";
 import { getDefaultProvider } from "./utils/provider";
@@ -41,6 +41,11 @@ export default async function QuickRead() {
   clearExternalStopRequest();
 
   try {
+    // Pre-flight: resolve options and run the credential/model check before
+    // any loading, so a missing key surfaces a guided error immediately
+    // instead of after a silent pause mid-synthesis.
+    const options = await validateDefaultOptions();
+
     const readableText = await getReadableText();
     if (!readableText) {
       const lastSessionAvailable = liveState && (liveState.phase === "stopped" || liveState.phase === "playing");
@@ -59,7 +64,6 @@ export default async function QuickRead() {
       return;
     }
 
-    const options = await buildDefaultOptionsFromPrefs();
     const { session, isResuming } = await prepareReadingSession(readableText.text, readableText.source, options);
     await playReadingSession(session, isResuming);
   } catch (error) {

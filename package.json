@@ -59,7 +59,7 @@
       "name": "read-with-voice",
       "title": "Read with MiniMax Voice",
       "subtitle": "MiniMax",
-      "description": "Browse MiniMax voices and read selected text aloud.",
+      "description": "Browse MiniMax voices and read selected text, or clipboard text if none, aloud.",
       "icon": "command-icon.png",
       "mode": "view"
     },

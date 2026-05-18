@@ -1,14 +1,4 @@
-import {
-  List,
-  ActionPanel,
-  Action,
-  showToast,
-  Toast,
-  getSelectedText,
-  Icon,
-  Color,
-  openExtensionPreferences,
-} from "@raycast/api";
+import { List, ActionPanel, Action, showToast, Toast, Icon, Color, openExtensionPreferences } from "@raycast/api";
 import { useState, useEffect, useCallback } from "react";
 import {
   addCustomVoices,
@@ -26,12 +16,13 @@ import {
   waitForExternalStopPropagation,
 } from "./utils/audio-player";
 import { getQuickReadVoiceOverride, setQuickReadVoiceOverride } from "./utils/voice-preferences";
+import { getReadableText, type TextSourceKind } from "./utils/text-source";
 import { readCachedVoices, writeCachedVoices } from "./utils/voice-cache";
 import { clearPlaybackState, readPlaybackState } from "./utils/playback-state";
 import { clearPlaybackSpeed } from "./utils/playback-speed";
 import { getMiniMaxSettings } from "./utils/provider-settings";
 import { OpenProviderSetupAction } from "./components/provider-setup-form";
-import { openProviderSetupCommand } from "./utils/provider-setup-command";
+import { getConfigurationAction } from "./utils/credential-action";
 import { hashText, saveReadingSession, type ReadingSession } from "./utils/reading-session";
 import { playReadingSession } from "./utils/reading-runner";
 import type { VoiceConfig } from "./api/types";
@@ -47,6 +38,7 @@ interface RowProgress {
 
 export default function ReadWithVoice() {
   const [selectedText, setSelectedText] = useState<string>("");
+  const [textSource, setTextSource] = useState<TextSourceKind | null>(null);
   const [voices, setVoices] = useState<VoiceConfig[]>(FALLBACK_VOICES);
   const [isLoading, setIsLoading] = useState(true);
   const [progress, setProgress] = useState<RowProgress | null>(null);
@@ -74,8 +66,11 @@ export default function ReadWithVoice() {
         setIsLoading(!cached.isFresh);
       }
 
-      const text = await getSelectedText().catch(() => "");
-      if (mounted) setSelectedText(text);
+      const readable = await getReadableText();
+      if (mounted) {
+        setSelectedText(readable?.text ?? "");
+        setTextSource(readable?.source ?? null);
+      }
 
       // Always refresh in the background so cloned voices show up promptly.
       try {
@@ -111,11 +106,43 @@ export default function ReadWithVoice() {
     };
   }, []);
 
+  const refreshText = useCallback(async (silent = false): Promise<void> => {
+    const readable = await getReadableText();
+    setSelectedText(readable?.text ?? "");
+    setTextSource(readable?.source ?? null);
+    if (silent) return;
+    await showToast(
+      readable
+        ? {
+            style: Toast.Style.Success,
+            title: readable.source === "clipboard" ? "Loaded from clipboard" : "Selection refreshed",
+            message: `${readable.text.length} characters`,
+          }
+        : {
+            style: Toast.Style.Failure,
+            title: "Nothing to read",
+            message: "Select text or copy it to the clipboard, then refresh.",
+          },
+    );
+  }, []);
+
   const handleRead = useCallback(
     async (voice: VoiceConfig) => {
-      const text = selectedText.trim();
+      let text = selectedText.trim();
       if (!text) {
-        await showToast({ style: Toast.Style.Failure, title: "No text selected" });
+        const readable = await getReadableText();
+        if (readable) {
+          text = readable.text;
+          setSelectedText(readable.text);
+          setTextSource(readable.source);
+        }
+      }
+      if (!text) {
+        await showToast({
+          style: Toast.Style.Failure,
+          title: "Nothing to read",
+          message: "Select text or copy it to the clipboard, then try again.",
+        });
         return;
       }
 
@@ -153,7 +180,7 @@ export default function ReadWithVoice() {
               style: Toast.Style.Failure,
               title: error.code === -1 ? "Configuration Required" : "Model Not Available",
               message: error.message,
-              primaryAction: getConfigurationAction(error.message),
+              primaryAction: getConfigurationAction(error.code),
             });
           } else {
             await showToast({ style: Toast.Style.Failure, title: "TTS Error", message: error.message });
@@ -193,18 +220,28 @@ export default function ReadWithVoice() {
     ? selectedText.length > 80
       ? selectedText.substring(0, 80) + "..."
       : selectedText
-    : "No text selected";
+    : "No text — select text or copy to clipboard, then Refresh (⌘R)";
 
   return (
     <List isLoading={isLoading} searchBarPlaceholder="Search MiniMax voices by language or name...">
       <List.Section title="Selected Text">
         <List.Item
           title={textPreview}
-          subtitle={selectedText ? `${selectedText.length} chars` : undefined}
-          icon={Icon.Text}
+          subtitle={
+            selectedText
+              ? `${selectedText.length} chars · ${textSource === "clipboard" ? "clipboard" : "selection"}`
+              : undefined
+          }
+          icon={textSource === "clipboard" ? Icon.Clipboard : Icon.Text}
           accessories={progress ? [{ tag: { value: progressLabel(progress), color: phaseColor(progress.phase) } }] : []}
           actions={
             <ActionPanel>
+              <Action
+                title="Refresh Text"
+                icon={Icon.ArrowClockwise}
+                shortcut={{ modifiers: ["cmd"], key: "r" }}
+                onAction={() => refreshText(false)}
+              />
               {progress && (
                 <Action
                   title="Stop Playback"
@@ -249,6 +286,12 @@ export default function ReadWithVoice() {
                       icon={Icon.Star}
                       onAction={() => handleSetQuickReadVoice(voice)}
                     />
+                    <Action
+                      title="Refresh Text"
+                      icon={Icon.ArrowClockwise}
+                      shortcut={{ modifiers: ["cmd"], key: "r" }}
+                      onAction={() => refreshText(false)}
+                    />
                     {progress && (
                       <Action
                         title="Stop Playback"
@@ -273,16 +316,6 @@ export default function ReadWithVoice() {
 
 function openProviderSettings() {
   return openExtensionPreferences();
-}
-
-function getConfigurationAction(message: string) {
-  return isCredentialError(message)
-    ? { title: "Open API Key Preferences", onAction: openExtensionPreferences }
-    : { title: "Setup Voice Defaults", onAction: openProviderSetupCommand };
-}
-
-function isCredentialError(message: string): boolean {
-  return /\b(api\s*)?key\b/i.test(message);
 }
 
 function progressLabel(progress: RowProgress): string {

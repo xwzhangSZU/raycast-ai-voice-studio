@@ -1,5 +1,5 @@
 import { LocalStorage } from "@raycast/api";
-import { buildOptionsFromPrefs } from "../api/minimax-tts";
+import { buildOptionsFromPrefs, validateOptions } from "../api/minimax-tts";
 import type { TTSOptions } from "../api/types";
 
 const QUICK_READ_VOICE_KEY = "quick-read-voice-override";
@@ -7,6 +7,15 @@ const QUICK_READ_VOICE_KEY = "quick-read-voice-override";
 export async function buildDefaultOptionsFromPrefs(): Promise<TTSOptions> {
   const voiceOverride = await getQuickReadVoiceOverride();
   return buildOptionsFromPrefs(voiceOverride || undefined);
+}
+
+/**
+ * Like buildDefaultOptionsFromPrefs, but also runs the credential / model
+ * pre-flight so callers can fail fast with a guided error before any loading.
+ */
+export async function validateDefaultOptions(): Promise<TTSOptions> {
+  const voiceOverride = await getQuickReadVoiceOverride();
+  return validateOptions(voiceOverride || undefined);
 }
 
 export async function getActiveQuickReadVoiceId(): Promise<{ voiceId: string; isOverride: boolean }> {
