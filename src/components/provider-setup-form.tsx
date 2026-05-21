@@ -398,11 +398,7 @@ export function ProviderSetupForm({ initialProvider }: ProviderSetupFormProps = 
 
       {activeProvider === "openai" ? (
         <>
-          <Form.Description title="OpenAI" text="OpenAI Speech API voices." />
-          <Form.Description
-            title="Model"
-            text="GPT-4o Mini TTS — OpenAI's latest speech model. Legacy tts-1 / tts-1-hd have been removed."
-          />
+          <Form.Description title="OpenAI" text="GPT-4o Mini TTS with steerable narration." />
           <Form.Dropdown
             id="openaiVoice"
             title="Voice"
@@ -421,6 +417,46 @@ export function ProviderSetupForm({ initialProvider }: ProviderSetupFormProps = 
               );
             })}
             {openaiVoices.length === 0 ? <Form.Dropdown.Item value="cedar" title="Cedar" /> : null}
+          </Form.Dropdown>
+          <Form.Dropdown
+            id="openaiTone"
+            title="Tone"
+            value={settings.openai.tone}
+            onChange={(tone) => updateOpenAI({ tone: tone as OpenAITone })}
+          >
+            {TONE_OPTIONS.map((option) => (
+              <Form.Dropdown.Item key={option.value} value={option.value} title={option.label} />
+            ))}
+          </Form.Dropdown>
+          <Form.Dropdown
+            id="openaiDelivery"
+            title="Delivery"
+            value={settings.openai.delivery}
+            onChange={(delivery) => updateOpenAI({ delivery: delivery as OpenAIDelivery })}
+          >
+            {DELIVERY_OPTIONS.map((option) => (
+              <Form.Dropdown.Item key={option.value} value={option.value} title={option.label} />
+            ))}
+          </Form.Dropdown>
+          <Form.Dropdown
+            id="openaiExpressiveness"
+            title="Expressiveness"
+            value={settings.openai.expressiveness}
+            onChange={(expressiveness) => updateOpenAI({ expressiveness: expressiveness as OpenAIExpressiveness })}
+          >
+            {EXPRESSIVENESS_OPTIONS.map((option) => (
+              <Form.Dropdown.Item key={option.value} value={option.value} title={option.label} />
+            ))}
+          </Form.Dropdown>
+          <Form.Dropdown
+            id="openaiAccentFocus"
+            title="Accent"
+            value={settings.openai.accentFocus}
+            onChange={(accentFocus) => updateOpenAI({ accentFocus: accentFocus as OpenAIAccentFocus })}
+          >
+            {ACCENT_FOCUS_OPTIONS.map((option) => (
+              <Form.Dropdown.Item key={option.value} value={option.value} title={option.label} />
+            ))}
           </Form.Dropdown>
           <Form.Dropdown
             id="openaiPlaybackRate"
@@ -501,64 +537,24 @@ export function ProviderSetupForm({ initialProvider }: ProviderSetupFormProps = 
           {activeProvider === "openai" ? (
             <>
               <Form.Separator />
-              <Form.Description
-                title="OpenAI Advanced"
-                text="Shape gpt-4o-mini-tts narration. Defaults are tuned for English / German / Chinese academic reading; speaking speed is set by Playback Rate above."
-              />
+              <Form.Description title="OpenAI Advanced" text="Audio format and free-form narration notes." />
               <Form.Dropdown
                 id="openaiResponseFormat"
                 title="Format"
                 value={settings.openai.responseFormat}
                 onChange={(responseFormat) => updateOpenAI({ responseFormat: responseFormat as OpenAIResponseFormat })}
               >
-                <Form.Dropdown.Item value="mp3" title="MP3" />
-                <Form.Dropdown.Item value="wav" title="WAV" />
-              </Form.Dropdown>
-              <Form.Dropdown
-                id="openaiTone"
-                title="Tone"
-                value={settings.openai.tone}
-                onChange={(tone) => updateOpenAI({ tone: tone as OpenAITone })}
-              >
-                {TONE_OPTIONS.map((option) => (
-                  <Form.Dropdown.Item key={option.value} value={option.value} title={option.label} />
-                ))}
-              </Form.Dropdown>
-              <Form.Dropdown
-                id="openaiExpressiveness"
-                title="Expressiveness"
-                value={settings.openai.expressiveness}
-                onChange={(expressiveness) => updateOpenAI({ expressiveness: expressiveness as OpenAIExpressiveness })}
-              >
-                {EXPRESSIVENESS_OPTIONS.map((option) => (
-                  <Form.Dropdown.Item key={option.value} value={option.value} title={option.label} />
-                ))}
-              </Form.Dropdown>
-              <Form.Dropdown
-                id="openaiDelivery"
-                title="Delivery"
-                value={settings.openai.delivery}
-                onChange={(delivery) => updateOpenAI({ delivery: delivery as OpenAIDelivery })}
-              >
-                {DELIVERY_OPTIONS.map((option) => (
-                  <Form.Dropdown.Item key={option.value} value={option.value} title={option.label} />
-                ))}
-              </Form.Dropdown>
-              <Form.Dropdown
-                id="openaiAccentFocus"
-                title="Accent focus"
-                value={settings.openai.accentFocus}
-                onChange={(accentFocus) => updateOpenAI({ accentFocus: accentFocus as OpenAIAccentFocus })}
-              >
-                {ACCENT_FOCUS_OPTIONS.map((option) => (
-                  <Form.Dropdown.Item key={option.value} value={option.value} title={option.label} />
-                ))}
+                <Form.Dropdown.Item value="wav" title="WAV · lowest latency" />
+                <Form.Dropdown.Item value="mp3" title="MP3 · general use" />
+                <Form.Dropdown.Item value="aac" title="AAC · compact" />
+                <Form.Dropdown.Item value="flac" title="FLAC · lossless" />
+                <Form.Dropdown.Item value="opus" title="Opus · streaming (requires ffmpeg)" />
               </Form.Dropdown>
               <Form.TextArea
                 id="openaiInstructions"
                 title="Extra notes"
                 value={settings.openai.instructions}
-                placeholder="Optional extra direction, appended after the settings above"
+                placeholder="Optional extra direction, appended after the style settings above"
                 onChange={(instructions) => updateOpenAI({ instructions })}
               />
             </>

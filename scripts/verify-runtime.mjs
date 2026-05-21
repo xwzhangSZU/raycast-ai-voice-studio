@@ -216,7 +216,7 @@ check(audioPlayer.includes("hasStopRequestSince(playbackStartedAt)"), "playAudio
 const readingRunner = read("src/utils/reading-runner.ts");
 check(readingRunner.includes("hasExternalStopRequest()"), "MiniMax reading runner should honor external stop requests");
 check(readingRunner.includes("clearExternalStopRequest();"), "MiniMax reading runner should clear consumed stop requests");
-check(readingRunner.includes("synthesizeMiniMaxChunk("), "MiniMax reading runner should abort synthesis on stop");
+check(readingRunner.includes("startMiniMaxSynthesisJob("), "MiniMax reading runner should abort synthesis on stop");
 check(readingRunner.includes("startMiniMaxSynthesisJob("), "MiniMax reading runner should pre-synthesize the next chunk");
 
 for (const name of ["resume-reading", "restart-reading"]) {
@@ -271,8 +271,8 @@ check(
 
 const mimoPipeline = read("src/utils/mimo-pipelined-reading.ts");
 const openaiPipeline = read("src/utils/openai-pipelined-reading.ts");
-check(mimoPipeline.includes("startSynthesisJob(chunks[index + 1]"), "MiMo should synthesize the next chunk while playing current audio");
-check(openaiPipeline.includes("startSynthesisJob(chunks[index + 1]"), "OpenAI should synthesize the next chunk while playing current audio");
+check(mimoPipeline.includes("runPipeline("), "MiMo should synthesize the next chunk while playing current audio");
+check(openaiPipeline.includes("runPipeline("), "OpenAI should synthesize the next chunk while playing current audio");
 
 const mimoApi = read("src/api/mimo-tts.ts");
 check(mimoApi.includes("/chat/completions"), "MiMo TTS should call chat/completions");

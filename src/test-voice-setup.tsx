@@ -33,7 +33,7 @@ interface VoiceSetupResult {
   modelLabel: string;
   voiceLabel: string;
   audio: string;
-  format: "mp3" | "wav";
+  format: string;
   playbackRate: number;
   synthMs: number;
   bytes: number;

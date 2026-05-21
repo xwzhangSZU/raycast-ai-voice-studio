@@ -1,9 +1,8 @@
-import { spawn, ChildProcess } from "child_process";
+import { spawn, execSync, ChildProcess } from "child_process";
 import { writeFileSync, unlinkSync, existsSync, readFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { randomUUID } from "crypto";
-import { execSync } from "child_process";
 
 const PID_FILE = join(tmpdir(), "ai-voice-studio.pid");
 const STOP_FILE = join(tmpdir(), "ai-voice-studio.stop");
@@ -24,7 +23,11 @@ export class AudioPlayer {
   async playAudio(base64Audio: string, format = "mp3", playbackRate = 1): Promise<void> {
     if (this.stopped) return;
 
-    const tempPath = this.saveTempFile(base64Audio, format);
+    let tempPath = this.saveTempFile(base64Audio, format);
+
+    if (format === "opus") {
+      tempPath = this.convertOpusToWav(tempPath);
+    }
     const playbackStartedAt = Date.now();
 
     return new Promise<void>((resolve, reject) => {
@@ -96,6 +99,18 @@ export class AudioPlayer {
       this.cleanupFile(f);
     }
     this.tempFiles = [];
+  }
+
+  private convertOpusToWav(opusPath: string): string {
+    const wavPath = opusPath.replace(/\.opus$/, ".wav");
+    try {
+      execSync(`ffmpeg -y -i "${opusPath}" "${wavPath}"`, { stdio: "ignore" });
+    } catch {
+      throw new Error("Opus playback requires ffmpeg. Install it with: brew install ffmpeg");
+    }
+    this.cleanupFile(opusPath);
+    this.tempFiles.push(wavPath);
+    return wavPath;
   }
 
   private saveTempFile(base64Audio: string, format: string): string {

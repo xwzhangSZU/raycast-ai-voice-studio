@@ -66,7 +66,7 @@ async function verifyInvalidFallbacks() {
     mimoTokenPlanBaseUrl: "   ",
     openaiModel: "bad-openai",
     openaiVoice: "   ",
-    openaiResponseFormat: "flac",
+    openaiResponseFormat: "ogg",
     openaiPlaybackRate: "9",
     openaiInstructions: "   ",
   };
@@ -91,7 +91,7 @@ async function verifyInvalidFallbacks() {
   );
   assert(result.openai.model === "gpt-4o-mini-tts", "Invalid OpenAI model should fall back");
   assert(result.openai.voice === "cedar", "Blank OpenAI voice should fall back");
-  assert(result.openai.responseFormat === "mp3", "Invalid OpenAI format should fall back");
+  assert(result.openai.responseFormat === "wav", "Invalid OpenAI format should fall back");
   assert(result.openai.playbackRate === "1", "Invalid OpenAI playback rate should fall back");
   assert(result.openai.instructions === "", "Blank OpenAI instructions should clear");
 }
@@ -140,7 +140,7 @@ async function verifyLegacyPreferencesIgnored() {
   );
   assert(result.openai.model === "gpt-4o-mini-tts", "Legacy preference OpenAI model should be ignored");
   assert(result.openai.voice === "cedar", "Legacy preference OpenAI voice should be ignored");
-  assert(result.openai.responseFormat === "mp3", "Legacy preference OpenAI format should be ignored");
+  assert(result.openai.responseFormat === "wav", "Legacy preference OpenAI format should be ignored");
   assert(result.openai.playbackRate === "1", "Legacy preference OpenAI rate should be ignored");
   assert(result.openai.instructions === "", "Legacy preference OpenAI instructions should be ignored");
 }

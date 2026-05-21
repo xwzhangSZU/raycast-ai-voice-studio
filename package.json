@@ -112,6 +112,14 @@
       "mode": "view"
     },
     {
+      "name": "openai-tts-studio",
+      "title": "OpenAI TTS Studio",
+      "subtitle": "OpenAI",
+      "description": "Generate and play OpenAI speech from typed, selected, or pasted text, with voice, tone, delivery, and style controls.",
+      "icon": "command-icon.png",
+      "mode": "view"
+    },
+    {
       "name": "openai-quick-read",
       "title": "Quick Read with OpenAI",
       "subtitle": "OpenAI",
@@ -173,6 +181,15 @@
       "title": "MiMo Reading Status",
       "subtitle": "MiMo",
       "description": "Show MiMo playback status, speed, and controls in the menu bar.",
+      "icon": "command-icon.png",
+      "mode": "menu-bar",
+      "interval": "1m"
+    },
+    {
+      "name": "openai-status",
+      "title": "OpenAI Reading Status",
+      "subtitle": "OpenAI",
+      "description": "Show OpenAI playback status, speed, and controls in the menu bar.",
       "icon": "command-icon.png",
       "mode": "menu-bar",
       "interval": "1m"

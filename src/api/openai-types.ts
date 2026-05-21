@@ -1,6 +1,6 @@
 export type OpenAITTSModel = "gpt-4o-mini-tts";
 
-export type OpenAIResponseFormat = "mp3" | "wav";
+export type OpenAIResponseFormat = "mp3" | "wav" | "opus" | "aac" | "flac";
 
 export interface TTSOptions {
   model: OpenAITTSModel;

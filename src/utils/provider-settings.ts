@@ -218,8 +218,10 @@ function normalizeOpenAIModel(model: string | undefined): OpenAITTSModel {
   return model === "gpt-4o-mini-tts" ? model : DEFAULT_MODEL;
 }
 
+const VALID_OPENAI_FORMATS: readonly string[] = ["mp3", "wav", "opus", "aac", "flac"];
+
 function normalizeOpenAIFormat(format: string | undefined): OpenAIResponseFormat {
-  return format === "wav" || format === "mp3" ? format : DEFAULT_FORMAT;
+  return VALID_OPENAI_FORMATS.includes(format ?? "") ? (format as OpenAIResponseFormat) : DEFAULT_FORMAT;
 }
 
 function normalizePlaybackRate(rate: string | undefined): string {
