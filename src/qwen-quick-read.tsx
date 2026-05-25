@@ -137,14 +137,9 @@ interface PlaybackContext {
   modelLabel: string;
 }
 
-async function runRealtimePath({
-  text,
-  options,
-  player,
-  toast,
-  voiceName,
-  modelLabel,
-}: PlaybackContext): Promise<void> {
+async function runRealtimePath(ctx: PlaybackContext): Promise<void> {
+  const { text, options, player, toast, voiceName, modelLabel } = ctx;
+  let firstAudioFired = false;
   player.startPcmStream({
     sampleRate: 24000,
     playbackRate: options.playbackRate,
@@ -170,6 +165,7 @@ async function runRealtimePath({
       options,
       {
         onFirstAudio: async () => {
+          firstAudioFired = true;
           toast.title = `Playing · ${voiceName}`;
           toast.message = modelLabel;
           await patchNowPlaying({ status: "playing", currentChunk: 0 });
@@ -185,6 +181,21 @@ async function runRealtimePath({
     if (!player.isStopped()) {
       await player.finishPcmStream();
     }
+  } catch (wsError) {
+    // Re-throw once the user has heard anything (avoid restarting mid-sentence)
+    // or when the user has explicitly stopped playback.
+    if (firstAudioFired || player.isStopped()) {
+      throw wsError;
+    }
+    // Silent fallback: the realtime WS path failed before any audio reached
+    // the user. Typical causes: WSS blocked by a network/firewall/proxy, TLS
+    // failure, sandbox restrictions, or an early server error. Fall through
+    // to the HTTP chunked path so the user still hears something — just at
+    // the old (slower) first-audio latency.
+    console.warn("Qwen-TTS realtime unavailable, falling back to HTTP:", wsError);
+    toast.title = "Synthesizing (HTTP fallback)";
+    toast.message = `${voiceName} · ${modelLabel}`;
+    await runHttpChunkedPath(ctx);
   } finally {
     clearInterval(stopPoll);
   }

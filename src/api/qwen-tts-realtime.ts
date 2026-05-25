@@ -48,14 +48,10 @@ export async function streamRealtimeSpeech(
   if (signal?.aborted) throw new TTSApiError("TTS synthesis cancelled", -7);
 
   const wsUrl = buildRealtimeWsUrl(options.baseUrl, realtimeModel);
-  // Node's built-in WebSocket (via undici) accepts a second `options` argument
-  // with `headers` — required for DashScope Bearer auth. This extension is not
-  // part of the W3C type, so we construct via a typed alias.
-  const WebSocketCtor = WebSocket as unknown as new (
-    url: string,
-    options: { headers: Record<string, string> },
-  ) => WebSocket;
-  const ws = new WebSocketCtor(wsUrl, {
+  // Node 22+ ships a built-in WebSocket (powered by undici) whose second
+  // argument accepts a `headers` option — required for DashScope's Bearer
+  // auth. The type from @types/node already exposes this on the global.
+  const ws = new WebSocket(wsUrl, {
     headers: { Authorization: `bearer ${apiKey}` },
   });
 
