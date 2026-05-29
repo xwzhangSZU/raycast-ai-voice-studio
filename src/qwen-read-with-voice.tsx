@@ -18,6 +18,7 @@ import {
   LANGUAGE_TYPE_LABELS,
   MODEL_LABELS,
   VOICE_CATEGORIES,
+  getReadWithVoicePicks,
   getVoiceSearchKeywords,
   getVoicesByCategory,
 } from "./constants/qwen-tts-voices";
@@ -66,6 +67,16 @@ export default function ReadWithVoice() {
         return getVoiceSearchKeywords(voice).some((value) => value.toLowerCase().includes(searchLower));
       }),
     })).filter((item) => item.voices.length > 0);
+  }, [searchText, currentModel]);
+
+  const pinnedPicks = useMemo(() => {
+    const searchLower = searchText.trim().toLowerCase();
+
+    return getReadWithVoicePicks(currentModel).filter(({ voice, purpose }) => {
+      if (!searchLower) return true;
+      if (purpose.toLowerCase().includes(searchLower)) return true;
+      return getVoiceSearchKeywords(voice).some((value) => value.toLowerCase().includes(searchLower));
+    });
   }, [searchText, currentModel]);
 
   const refreshSelection = useCallback(async (silent = false): Promise<void> => {
@@ -264,6 +275,52 @@ export default function ReadWithVoice() {
     </>
   );
 
+  const renderVoiceItem = (voice: VoiceConfig, options?: { keyPrefix?: string; purpose?: string }) => (
+    <List.Item
+      key={`${options?.keyPrefix ?? ""}${voice.id}`}
+      title={voice.name}
+      subtitle={voice.description}
+      icon={voiceIcon(voice)}
+      keywords={getVoiceSearchKeywords(voice)}
+      accessories={[
+        ...(options?.purpose ? [{ tag: { value: options.purpose, color: Color.Purple } }] : []),
+        ...(playingVoiceId === voice.id ? [{ tag: { value: "Playing", color: Color.Blue } }] : []),
+        ...(voice.recommended ? [{ tag: { value: "Recommended", color: Color.Green } }] : []),
+      ]}
+      detail={
+        <VoiceDetail
+          voice={voice}
+          model={MODEL_LABELS[currentModel]}
+          selectedText={selectedText}
+          speedLabel={speedLabel}
+          languageLabel={languageLabel}
+        />
+      }
+      actions={
+        <ActionPanel>
+          <Action title="Read Text" icon={Icon.Play} onAction={() => handleRead(voice)} />
+          {stopAction}
+          {speedActions}
+          <Action
+            title="Refresh Selection"
+            icon={Icon.ArrowClockwise}
+            shortcut={{ modifiers: ["cmd"], key: "r" }}
+            onAction={() => refreshSelection(false)}
+          />
+          <Action
+            title="Paste from Clipboard"
+            icon={Icon.Clipboard}
+            shortcut={{ modifiers: ["cmd", "shift"], key: "v" }}
+            onAction={loadFromClipboard}
+          />
+          <Action.CopyToClipboard title="Copy Voice Identifier" content={voice.id} />
+          <OpenProviderSetupAction provider="qwen" />
+          <Action title="Open API Key Preferences" icon={Icon.Key} onAction={openProviderSettings} />
+        </ActionPanel>
+      }
+    />
+  );
+
   return (
     <List
       isLoading={isLoading}
@@ -318,52 +375,15 @@ export default function ReadWithVoice() {
         />
       </List.Section>
 
+      {pinnedPicks.length > 0 ? (
+        <List.Section title="★ My Picks" subtitle={`${pinnedPicks.length} voices`}>
+          {pinnedPicks.map(({ voice, purpose }) => renderVoiceItem(voice, { keyPrefix: "pinned-", purpose }))}
+        </List.Section>
+      ) : null}
+
       {filteredCategories.map(({ category, voices }) => (
         <List.Section key={category} title={category}>
-          {voices.map((voice) => (
-            <List.Item
-              key={voice.id}
-              title={voice.name}
-              subtitle={voice.description}
-              icon={voiceIcon(voice)}
-              keywords={getVoiceSearchKeywords(voice)}
-              accessories={[
-                ...(playingVoiceId === voice.id ? [{ tag: { value: "Playing", color: Color.Blue } }] : []),
-                ...(voice.recommended ? [{ tag: { value: "Recommended", color: Color.Green } }] : []),
-              ]}
-              detail={
-                <VoiceDetail
-                  voice={voice}
-                  model={MODEL_LABELS[currentModel]}
-                  selectedText={selectedText}
-                  speedLabel={speedLabel}
-                  languageLabel={languageLabel}
-                />
-              }
-              actions={
-                <ActionPanel>
-                  <Action title="Read Text" icon={Icon.Play} onAction={() => handleRead(voice)} />
-                  {stopAction}
-                  {speedActions}
-                  <Action
-                    title="Refresh Selection"
-                    icon={Icon.ArrowClockwise}
-                    shortcut={{ modifiers: ["cmd"], key: "r" }}
-                    onAction={() => refreshSelection(false)}
-                  />
-                  <Action
-                    title="Paste from Clipboard"
-                    icon={Icon.Clipboard}
-                    shortcut={{ modifiers: ["cmd", "shift"], key: "v" }}
-                    onAction={loadFromClipboard}
-                  />
-                  <Action.CopyToClipboard title="Copy Voice Identifier" content={voice.id} />
-                  <OpenProviderSetupAction provider="qwen" />
-                  <Action title="Open API Key Preferences" icon={Icon.Key} onAction={openProviderSettings} />
-                </ActionPanel>
-              }
-            />
-          ))}
+          {voices.map((voice) => renderVoiceItem(voice))}
         </List.Section>
       ))}
     </List>
