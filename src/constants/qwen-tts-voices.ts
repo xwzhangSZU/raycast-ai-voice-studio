@@ -569,6 +569,19 @@ export function getReadWithVoicePicks(model: QwenTTSModel): ResolvedVoicePick[] 
   });
 }
 
+/**
+ * Curated picks that exist but are unavailable on the given model (e.g. the Minnan/Tianjin
+ * dialect personas are exclusive to qwen3-tts-flash). Used to surface a hint instead of
+ * letting these voices silently vanish when a less capable model is active.
+ */
+export function getHiddenReadWithVoicePicks(model: QwenTTSModel): ResolvedVoicePick[] {
+  return READ_WITH_VOICE_PICKS.flatMap((pick) => {
+    const voice = getVoiceById(pick.voiceId);
+    if (!voice || voice.models.includes(model)) return [];
+    return [{ voice, purpose: pick.purpose }];
+  });
+}
+
 export function getModelConfig(model: QwenTTSModel): QwenModelConfig {
   return QWEN_MODEL_CONFIGS.find((config) => config.id === model) ?? QWEN_MODEL_CONFIGS[0];
 }

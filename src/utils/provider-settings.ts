@@ -10,6 +10,7 @@ import {
   QWEN_MODELS,
   QWEN_REGIONS,
   getQwenRegionBaseUrl,
+  getVoicesForModel as getQwenVoicesForModel,
   inferQwenRegion,
   normalizeQwenBaseUrl,
 } from "../constants/qwen-tts-voices";
@@ -195,6 +196,24 @@ export async function saveProviderSettingsOverrides(settings: ProviderSettingsIn
 
 export async function clearProviderSettingsOverrides(): Promise<void> {
   await LocalStorage.removeItem(QUICK_SETUP_OVERRIDES_KEY);
+}
+
+/**
+ * Persist the active Qwen model. Keeps the configured default voice valid for the new model
+ * (falls back to the first available voice), mirroring the Setup Voice Defaults form so other
+ * commands never inherit a voice the model cannot synthesize. Returns the saved Qwen settings.
+ */
+export async function setActiveQwenModel(nextModel: QwenTTSModel): Promise<QwenProviderSettings> {
+  const settings = await getProviderSettings();
+  const nextVoices = getQwenVoicesForModel(nextModel);
+  const nextVoice = nextVoices.some((voice) => voice.id === settings.qwen.voice)
+    ? settings.qwen.voice
+    : (nextVoices[0]?.id ?? DEFAULT_QWEN_VOICE);
+  const saved = await saveProviderSettingsOverrides({
+    ...settings,
+    qwen: { ...settings.qwen, model: nextModel, voice: nextVoice },
+  });
+  return saved.qwen;
 }
 
 function mergeSettings(base: ProviderSettings, overrides: ProviderSettingsInput): ProviderSettingsInput {

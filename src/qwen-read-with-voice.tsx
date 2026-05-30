@@ -12,12 +12,14 @@ import {
 } from "@raycast/api";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { buildOptionsAsync, getActiveModelAsync, getModelLabel } from "./api/qwen-tts";
-import type { VoiceConfig } from "./api/qwen-tts-types";
+import type { QwenTTSModel, VoiceConfig } from "./api/qwen-tts-types";
 import {
   DEFAULT_MODEL,
   LANGUAGE_TYPE_LABELS,
   MODEL_LABELS,
+  QWEN_MODELS,
   VOICE_CATEGORIES,
+  getHiddenReadWithVoicePicks,
   getReadWithVoicePicks,
   getVoiceSearchKeywords,
   getVoicesByCategory,
@@ -41,7 +43,8 @@ import {
 } from "./utils/qwen-playback-state";
 import { playChunksWithLookahead } from "./utils/qwen-pipelined-reading";
 import { chunkText } from "./utils/qwen-text-chunker";
-import { getQwenSettings } from "./utils/provider-settings";
+import { getQwenSettings, setActiveQwenModel } from "./utils/provider-settings";
+import { dropQuickReadVoiceOverrideIfInvalid } from "./utils/qwen-voice-preferences";
 
 type SelectionSource = "selection" | "clipboard" | "none";
 
@@ -78,6 +81,35 @@ export default function ReadWithVoice() {
       return getVoiceSearchKeywords(voice).some((value) => value.toLowerCase().includes(searchLower));
     });
   }, [searchText, currentModel]);
+
+  const hiddenPicks = useMemo(
+    () => (searchText.trim() ? [] : getHiddenReadWithVoicePicks(currentModel)),
+    [searchText, currentModel],
+  );
+  const hiddenPickPurposes = useMemo(
+    () => Array.from(new Set(hiddenPicks.map((pick) => pick.purpose))).join(", "),
+    [hiddenPicks],
+  );
+
+  const handleModelChange = useCallback(
+    async (value: string) => {
+      const nextModel = value as QwenTTSModel;
+      if (nextModel === currentModel) return;
+      try {
+        const qwen = await setActiveQwenModel(nextModel);
+        await dropQuickReadVoiceOverrideIfInvalid(qwen.model);
+        setCurrentModel(qwen.model);
+        await showToast({ style: Toast.Style.Success, title: `Model: ${MODEL_LABELS[qwen.model]}` });
+      } catch (error) {
+        await showToast({
+          style: Toast.Style.Failure,
+          title: "Could not switch model",
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    },
+    [currentModel],
+  );
 
   const refreshSelection = useCallback(async (silent = false): Promise<void> => {
     const text = await getSelectedText().catch(() => "");
@@ -328,11 +360,18 @@ export default function ReadWithVoice() {
       searchBarPlaceholder="Search Qwen-TTS voices..."
       onSearchTextChange={setSearchText}
       navigationTitle="Read with Qwen-TTS Voice"
+      searchBarAccessory={
+        <List.Dropdown tooltip="Qwen Model" value={currentModel} onChange={handleModelChange} storeValue={false}>
+          {QWEN_MODELS.map((model) => (
+            <List.Dropdown.Item key={model} value={model} title={MODEL_LABELS[model]} />
+          ))}
+        </List.Dropdown>
+      }
     >
       <List.EmptyView
         icon={Icon.SpeakerOff}
         title="No voices found"
-        description={`Try another search term or change the model in Setup Voice Defaults. Current model: ${MODEL_LABELS[currentModel]}`}
+        description={`Try another search term, or switch the model with the dropdown in the top-right. Current model: ${MODEL_LABELS[currentModel]}`}
       />
       <List.Section title="Current Text">
         <List.Item
@@ -378,6 +417,35 @@ export default function ReadWithVoice() {
       {pinnedPicks.length > 0 ? (
         <List.Section title="★ My Picks" subtitle={`${pinnedPicks.length} voices`}>
           {pinnedPicks.map(({ voice, purpose }) => renderVoiceItem(voice, { keyPrefix: "pinned-", purpose }))}
+        </List.Section>
+      ) : null}
+
+      {hiddenPicks.length > 0 ? (
+        <List.Section title="More Picks">
+          <List.Item
+            icon={{ source: Icon.Info, tintColor: Color.Yellow }}
+            title={`${hiddenPicks.length} picks need ${MODEL_LABELS[DEFAULT_MODEL]}`}
+            subtitle={hiddenPickPurposes}
+            accessories={[{ tag: { value: "Switch model", color: Color.Yellow } }]}
+            detail={
+              <List.Item.Detail
+                markdown={`## More voices on ${MODEL_LABELS[DEFAULT_MODEL]}\n\nThese curated picks are not available on **${MODEL_LABELS[currentModel]}**:\n\n${hiddenPicks
+                  .map((pick) => `- ${pick.voice.name} · ${pick.purpose}`)
+                  .join("\n")}\n\nSwitch the model with the top-right dropdown (or the action below) to use them.`}
+              />
+            }
+            actions={
+              <ActionPanel>
+                <Action
+                  title={`Switch to ${MODEL_LABELS[DEFAULT_MODEL]}`}
+                  icon={Icon.Gauge}
+                  onAction={() => handleModelChange(DEFAULT_MODEL)}
+                />
+                <OpenProviderSetupAction provider="qwen" />
+                <Action title="Open API Key Preferences" icon={Icon.Key} onAction={openProviderSettings} />
+              </ActionPanel>
+            }
+          />
         </List.Section>
       ) : null}
 
