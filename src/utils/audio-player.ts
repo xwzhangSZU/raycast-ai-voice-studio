@@ -1,4 +1,4 @@
-import { spawn, execFileSync, execSync, ChildProcess } from "child_process";
+import { spawn, execFileSync, ChildProcess } from "child_process";
 import { writeFileSync, unlinkSync, existsSync, readFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
@@ -232,6 +232,12 @@ export class AudioPlayer {
     proc.on("error", (err) => {
       if (this.pcmCurrentProcess === proc) this.pcmCurrentProcess = null;
       if (this.currentProcess === proc) this.currentProcess = null;
+      // Mirror the close handler: the dead process must release its PID
+      // record before a Stop Reading from another command happens to find
+      // and probe a recycled pid. The non-PCM path already does this; the
+      // PCM error handler was skipping both fields.
+      if (this.currentPid === myPid) this.currentPid = undefined;
+      removePidFileIfMatch(myPid);
       this.cleanupFile(file);
       if (this.pcmCompletePromise) {
         this.pcmCompletePromise.reject(err);
@@ -377,7 +383,7 @@ export function stopExternalPlayback(): boolean {
 
     // Verify the PID belongs to afplay before killing
     try {
-      const comm = execSync(`ps -p ${pid} -o comm=`, { encoding: "utf8" }).trim();
+      const comm = execFileSync("ps", ["-p", String(pid), "-o", "comm="], { encoding: "utf8" }).trim();
       if (!comm.includes("afplay")) {
         removePidFile();
         return false;
@@ -389,7 +395,11 @@ export function stopExternalPlayback(): boolean {
 
     requestExternalStop();
     process.kill(pid, "SIGTERM");
-    removePidFile();
+    // Only remove the PID file if it still names the pid we just killed;
+    // a concurrent Quick Read may have started between the kill and here
+    // and written its own PID. Unconditional removal would leave that new
+    // session unstoppable via Stop Reading.
+    removePidFileIfMatch(pid);
     return true;
   } catch {
     removePidFile();

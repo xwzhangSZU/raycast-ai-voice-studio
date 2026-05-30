@@ -1,1 +1,1 @@
-export { getPreviewText, resolveReadingText, type ResolvedText, type TextSourceKind } from "./openai-text-source";
+export { getPreviewText, resolveReadingText, type ResolvedText, type TextSourceKind } from "./shared-text-source";
